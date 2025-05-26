@@ -1,0 +1,27 @@
+---
+services:
+  nautobot:
+    environment:
+      - "NAUTOBOT_DB_ENGINE=django_prometheus.db.backends.mysql"
+  celery_worker:
+    environment:
+      - "NAUTOBOT_DB_ENGINE=django_prometheus.db.backends.mysql"
+  celery_beat:
+    environment:
+      - "NAUTOBOT_DB_ENGINE=django_prometheus.db.backends.mysql"
+  db:
+    image: mysql:8
+    env_file:
+      - dev.env
+    volumes:
+      # Unit tests require the createdb permission to clone the database
+      - ./mysql-unittests.sql:/docker-entrypoint-initdb.d/mysql-unittests.sql
+      - mysqldata_nautobot:/var/lib/mysql
+    healthcheck:
+      interval: 10s
+      timeout: 5s
+      start_period: 30s
+      retries: 3
+      test: 'mysql -h localhost -u $$MYSQL_USER --password=$$MYSQL_PASSWORD --execute "SHOW DATABASES;"'
+volumes:
+  mysqldata_nautobot:
