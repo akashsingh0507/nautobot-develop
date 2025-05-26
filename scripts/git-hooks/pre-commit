@@ -1,0 +1,48 @@
+#!/bin/bash
+# Create a link to this file at .git/hooks/pre-commit to force various linting and static analysis prior to committing
+
+exec 1>&2
+
+EXIT=0
+RED='\033[0;31m'
+NOCOLOR='\033[0m'
+
+if [ -d ./venv/ ]; then
+    VENV="$PWD/venv"
+    if [ -e $VENV/bin/python ]; then
+        PATH=$VENV/bin:$PATH
+    elif [ -e $VENV/Scripts/python.exe ]; then
+        PATH=$VENV/Scripts:$PATH
+    fi
+fi
+
+echo "Validating branch name..."
+[[ $(git branch --show-current) =~ ^u/ ]] || echo "! Your branch name does not conform to the 'u/' prefix convention."
+
+echo "Check that YAML files conform to best practices..."
+invoke yamllint || EXIT=1
+
+echo "Checking for missing migrations..."
+invoke check-migrations || EXIT=1
+
+if [ "$INVOKE_NAUTOBOT_LOCAL" = "True" ] && [ ! -x "$(command -v hadolint)" ]; then
+    echo "Skipping Dockerfile check: hadolint must be installed to run"
+else
+    echo "Checking Dockerfile..."
+    invoke hadolint || EXIT=1
+fi
+
+echo "Checking Markdown files..."
+invoke markdownlint || EXIT=1
+
+echo "Check formatting and static analysis via ruff..."
+invoke ruff || EXIT=1
+
+echo "Check static analysis via pylint..."
+invoke pylint || EXIT=1
+
+if [ $EXIT != 0 ]; then
+	printf "${RED}COMMIT FAILED${NOCOLOR}\n"
+fi
+
+exit $EXIT
